@@ -1,0 +1,13 @@
+.vscode/**
+src/**
+test/**
+mock/**
+out/**/*.map
+**/*.ts
+tsconfig.json
+.gitignore
+node_modules/.bin/**
+install.cmd
+*.vsix
+scripts/**
+resources/icon-gallery.svg

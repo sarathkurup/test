@@ -1,0 +1,445 @@
+{
+  "name": "switchboard",
+  "displayName": "Switchboard",
+  "description": "One local port. Any upstream. Same conversation.",
+  "version": "0.2.0",
+  "publisher": "local",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "copilot",
+    "proxy",
+    "gateway",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/local/switchboard"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "switchboard",
+          "title": "Switchboard",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "switchboard": [
+        {
+          "type": "webview",
+          "id": "switchboard.panel",
+          "name": "Switchboard"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "switchboard.selectProvider",
+        "title": "Switchboard: Choose upstream"
+      },
+      {
+        "command": "switchboard.toggle",
+        "title": "Switchboard: Switch to the next upstream"
+      },
+      {
+        "command": "switchboard.test",
+        "title": "Switchboard: Test connection"
+      },
+      {
+        "command": "switchboard.refreshToken",
+        "title": "Switchboard: Refresh gateway token"
+      },
+      {
+        "command": "switchboard.start",
+        "title": "Switchboard: Start bridge"
+      },
+      {
+        "command": "switchboard.stop",
+        "title": "Switchboard: Stop bridge"
+      },
+      {
+        "command": "switchboard.restart",
+        "title": "Switchboard: Restart bridge"
+      },
+      {
+        "command": "switchboard.logs",
+        "title": "Switchboard: Show logs"
+      },
+      {
+        "command": "switchboard.setPat",
+        "title": "Switchboard: Set a platform token"
+      },
+      {
+        "command": "switchboard.clearPat",
+        "title": "Switchboard: Clear a platform token"
+      },
+      {
+        "command": "switchboard.setDirectKey",
+        "title": "Switchboard: Set direct Anthropic API key"
+      },
+      {
+        "command": "switchboard.fetchModels",
+        "title": "Switchboard: Fetch models from a platform"
+      },
+      {
+        "command": "switchboard.wireClaude",
+        "title": "Switchboard: Connect Claude Code"
+      },
+      {
+        "command": "switchboard.unwireClaude",
+        "title": "Switchboard: Disconnect Claude Code"
+      },
+      {
+        "command": "switchboard.wireCopilot",
+        "title": "Switchboard: Connect editor chat"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Switchboard",
+        "properties": {
+          "switchboard.activeProvider": {
+            "type": "string",
+            "enum": [
+              "genai",
+              "bedrock",
+              "direct"
+            ],
+            "enumDescriptions": [
+              "The primary corporate platform.",
+              "The second corporate platform.",
+              "api.anthropic.com, for comparison."
+            ],
+            "default": "genai",
+            "order": 1,
+            "description": "Which upstream requests go to. The panel and status bar also switch this."
+          },
+          "switchboard.listenHost": {
+            "type": "string",
+            "default": "127.0.0.1",
+            "order": 2,
+            "markdownDescription": "Address the bridge listens on. Keep `127.0.0.1` unless you intend to expose it beyond this machine."
+          },
+          "switchboard.listenPort": {
+            "type": "number",
+            "default": 8787,
+            "order": 3,
+            "description": "Local port. Keep it stable: the value is written into your Claude Code settings. Change it if another proxy already uses this port."
+          },
+          "switchboard.autoStart": {
+            "type": "boolean",
+            "default": true,
+            "order": 4,
+            "description": "Start the bridge when VS Code finishes loading."
+          }
+        }
+      },
+      {
+        "title": "Switchboard: GenAI platform",
+        "properties": {
+          "switchboard.genai.url": {
+            "type": "string",
+            "default": "",
+            "order": 1,
+            "markdownDescription": "The GenAI platform address. A base URL is enough; the API path is appended. A full endpoint URL is also accepted."
+          },
+          "switchboard.genai.authMode": {
+            "type": "string",
+            "enum": [
+              "pat",
+              "jwt",
+              "none"
+            ],
+            "enumDescriptions": [
+              "Send the token straight through as the credential.",
+              "Trade the token for a short-lived JWT first, then send that.",
+              "Send no credential at all."
+            ],
+            "default": "jwt",
+            "order": 2,
+            "markdownDescription": "How this platform expects to be authenticated. Choose `jwt` when it issues short-lived tokens from a refresh endpoint."
+          },
+          "switchboard.genai.userEmail": {
+            "type": "string",
+            "default": "",
+            "order": 3,
+            "description": "Identity this platform attributes usage to. Sent in the identity header below."
+          },
+          "switchboard.genai.environment": {
+            "type": "string",
+            "default": "PRO",
+            "order": 4,
+            "markdownDescription": "Which entry of the environment URLs below to use, for example `DEV`, `UAT` or `PRO`. Ignored when a refresh URL is set explicitly."
+          },
+          "switchboard.genai.environmentUrls": {
+            "type": "object",
+            "default": {},
+            "order": 5,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "markdownDescription": "Token exchange base URL per environment, for example `{\"DEV\": \"https://dev.example.com/api-access\", \"PRO\": \"https://example.com/api-access\"}`. These are yours to supply; none are built in."
+          },
+          "switchboard.genai.refreshUrl": {
+            "type": "string",
+            "default": "",
+            "order": 6,
+            "markdownDescription": "Token exchange base URL, overriding the environment lookup. `/refresh` is appended."
+          },
+          "switchboard.genai.apiShape": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic"
+            ],
+            "default": "openai",
+            "order": 7,
+            "markdownDescription": "Which API this platform speaks. `openai` translates in both directions; `anthropic` forwards with almost no translation."
+          },
+          "switchboard.genai.modelMap": {
+            "type": "object",
+            "default": {},
+            "order": 8,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "markdownDescription": "Maps the model ids clients ask for onto the ids this platform serves. A key ending in `*` matches by prefix."
+          },
+          "switchboard.genai.identityHeader": {
+            "type": "string",
+            "default": "x-ndaq-user",
+            "order": 9,
+            "description": "Header carrying the user email. Leave empty if this platform does not want one."
+          },
+          "switchboard.genai.tenantHeader": {
+            "type": "string",
+            "default": "x-amz-tenant-id",
+            "order": 10,
+            "description": "Header carrying the tenant id. Leave empty if not required."
+          },
+          "switchboard.genai.tenantId": {
+            "type": "string",
+            "default": "genai",
+            "order": 11,
+            "description": "Value sent in the tenant header."
+          },
+          "switchboard.genai.authHeader": {
+            "type": "string",
+            "default": "Authorization",
+            "order": 12,
+            "description": "Header carrying the credential."
+          },
+          "switchboard.genai.authPrefix": {
+            "type": "string",
+            "default": "Bearer ",
+            "order": 13,
+            "description": "Text placed before the credential. Empty for a bare token."
+          },
+          "switchboard.genai.pathTemplate": {
+            "type": "string",
+            "default": "",
+            "order": 14,
+            "markdownDescription": "Overrides the request path. `{model}` is substituted, which suits APIs that address a deployment by model id in the URL. Leave empty for the usual paths."
+          },
+          "switchboard.genai.extraHeaders": {
+            "type": "object",
+            "default": {},
+            "order": 15,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Additional static headers sent on every call to this platform."
+          }
+        }
+      },
+      {
+        "title": "Switchboard: AWS Bedrock",
+        "properties": {
+          "switchboard.bedrock.url": {
+            "type": "string",
+            "default": "",
+            "order": 1,
+            "markdownDescription": "Bedrock address. A base URL is enough; the API path is appended. A full endpoint URL is also accepted."
+          },
+          "switchboard.bedrock.authMode": {
+            "type": "string",
+            "enum": [
+              "pat",
+              "jwt",
+              "none"
+            ],
+            "enumDescriptions": [
+              "Send the token straight through as the credential.",
+              "Trade the token for a short-lived JWT first, then send that.",
+              "Send no credential at all."
+            ],
+            "default": "pat",
+            "order": 2,
+            "markdownDescription": "How this platform expects to be authenticated. Choose `jwt` when it issues short-lived tokens from a refresh endpoint."
+          },
+          "switchboard.bedrock.userEmail": {
+            "type": "string",
+            "default": "",
+            "order": 3,
+            "description": "Identity this platform attributes usage to. Sent in the identity header below."
+          },
+          "switchboard.bedrock.environment": {
+            "type": "string",
+            "default": "",
+            "order": 4,
+            "markdownDescription": "Which entry of the environment URLs below to use, for example `DEV`, `UAT` or `PRO`. Ignored when a refresh URL is set explicitly."
+          },
+          "switchboard.bedrock.environmentUrls": {
+            "type": "object",
+            "default": {},
+            "order": 5,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "markdownDescription": "Token exchange base URL per environment, for example `{\"DEV\": \"https://dev.example.com/api-access\", \"PRO\": \"https://example.com/api-access\"}`. These are yours to supply; none are built in."
+          },
+          "switchboard.bedrock.refreshUrl": {
+            "type": "string",
+            "default": "",
+            "order": 6,
+            "markdownDescription": "Token exchange base URL, overriding the environment lookup. `/refresh` is appended."
+          },
+          "switchboard.bedrock.apiShape": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic"
+            ],
+            "default": "anthropic",
+            "order": 7,
+            "markdownDescription": "Which API this platform speaks. `openai` translates in both directions; `anthropic` forwards with almost no translation."
+          },
+          "switchboard.bedrock.modelMap": {
+            "type": "object",
+            "default": {},
+            "order": 8,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "markdownDescription": "Maps the model ids clients ask for onto the ids this platform serves. A key ending in `*` matches by prefix."
+          },
+          "switchboard.bedrock.identityHeader": {
+            "type": "string",
+            "default": "",
+            "order": 9,
+            "description": "Header carrying the user email. Leave empty if this platform does not want one."
+          },
+          "switchboard.bedrock.tenantHeader": {
+            "type": "string",
+            "default": "",
+            "order": 10,
+            "description": "Header carrying the tenant id. Leave empty if not required."
+          },
+          "switchboard.bedrock.tenantId": {
+            "type": "string",
+            "default": "",
+            "order": 11,
+            "description": "Value sent in the tenant header."
+          },
+          "switchboard.bedrock.authHeader": {
+            "type": "string",
+            "default": "Authorization",
+            "order": 12,
+            "description": "Header carrying the credential."
+          },
+          "switchboard.bedrock.authPrefix": {
+            "type": "string",
+            "default": "Bearer ",
+            "order": 13,
+            "description": "Text placed before the credential. Empty for a bare token."
+          },
+          "switchboard.bedrock.pathTemplate": {
+            "type": "string",
+            "default": "",
+            "order": 14,
+            "markdownDescription": "Overrides the request path. `{model}` is substituted, which suits APIs that address a deployment by model id in the URL. Leave empty for the usual paths."
+          },
+          "switchboard.bedrock.extraHeaders": {
+            "type": "object",
+            "default": {},
+            "order": 15,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Additional static headers sent on every call to this platform."
+          },
+          "switchboard.bedrock.region": {
+            "type": "string",
+            "default": "",
+            "order": 16,
+            "description": "Region, for platforms that need one."
+          }
+        }
+      },
+      {
+        "title": "Switchboard: advanced",
+        "properties": {
+          "switchboard.direct.url": {
+            "type": "string",
+            "default": "https://api.anthropic.com/v1/messages",
+            "description": "Upstream used in direct mode."
+          },
+          "switchboard.includeUsage": {
+            "type": "boolean",
+            "default": true,
+            "description": "Ask the platform to report token counts. Turn off if it rejects the stream_options field."
+          },
+          "switchboard.forceNonStreaming": {
+            "type": "boolean",
+            "default": false,
+            "description": "Always request a whole response and synthesise the streaming events locally."
+          },
+          "switchboard.verbose": {
+            "type": "boolean",
+            "default": false,
+            "description": "Log translated request bodies. Credentials are always redacted."
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "icon": "node scripts/make-icon.js",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package",
+    "reinstall": "npm run compile && npx @vscode/vsce package && code --install-extension switchboard-0.2.0.vsix --force",
+    "bridge": "node bridge/standalone.js",
+    "mock": "node mock/upstream.js",
+    "test": "npm run compile && node --test test/adapter.test.js test/claudeConfig.test.js test/token.test.js test/log.test.js test/config.test.js",
+    "settings": "node scripts/build-settings.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "undici": "^7.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.9.2",
+    "sharp": "^0.33.5",
+    "typescript": "^5.7.2"
+  }
+}
